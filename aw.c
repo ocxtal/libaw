@@ -28,6 +28,8 @@
 #define SAM_VERSION_STRING			"1.0"
 #define SAM_DEFAULT_READGROUP		( 1 )
 
+#define GPA_VERSION_STRING			"1.0"
+
 /**
  * @struct aw_conf_s
  */
@@ -62,6 +64,57 @@ struct aw_s {
 	char *program_name;
 	char *command;				/* '\t' must be substituted to ' ' */
 };
+
+
+/* formatter utils */
+
+/**
+ * @fn aw_decode_4bit
+ */
+static _force_inline
+char aw_decode_4bit(
+	uint8_t base)
+{
+	char const table[] = {
+		'N', 'A', 'C', 'M', 'G', 'R', 'S', 'V',
+		'T', 'W', 'Y', 'H', 'K', 'D', 'B', 'N'
+	};
+	return(table[base & 0x0f]);
+}
+
+/**
+ * @fn aw_print_str
+ */
+static _force_inline
+void aw_print_str(
+	zf_t *fp,
+	char const *str,
+	uint32_t len)
+{
+	debug("print_str %p, %s", str, str);
+
+	for(int64_t i = 0; i < len; i++) {
+		zfputc(fp, str[i]);
+	}
+	return;
+}
+
+/**
+ * @fn aw_print_num
+ */
+static _force_inline
+void aw_print_num(
+	zf_t *fp,
+	int64_t n)
+{
+	debug("print_num %lld", n);
+
+	zfprintf(fp, "%lld", n);
+	return;
+}
+
+
+/* sam format writers */
 
 /**
  * @fn sam_write_header
@@ -124,51 +177,6 @@ int64_t sam_calc_flags(
 	flags |= (gref_dir(curr->aid) ^ gref_dir(curr->bid)) ? 0x10 : 0;
 	
 	return(flags);
-}
-
-/**
- * @fn sam_print_str
- */
-static _force_inline
-void sam_print_str(
-	zf_t *fp,
-	char const *str,
-	uint32_t len)
-{
-	debug("print_str %p, %s", str, str);
-
-	for(int64_t i = 0; i < len; i++) {
-		zfputc(fp, str[i]);
-	}
-	return;
-}
-
-/**
- * @fn sam_print_num
- */
-static _force_inline
-void sam_print_num(
-	zf_t *fp,
-	int64_t n)
-{
-	debug("print_num %lld", n);
-
-	zfprintf(fp, "%lld", n);
-	return;
-}
-
-/**
- * @fn sam_seq_decode_base
- */
-static _force_inline
-char sam_seq_decode_base(
-	uint8_t base)
-{
-	char const table[] = {
-		'N', 'A', 'C', 'M', 'G', 'R', 'S', 'V',
-		'T', 'W', 'Y', 'H', 'K', 'D', 'B', 'N'
-	};
-	return(table[base & 0x0f]);
 }
 
 /**
@@ -247,19 +255,19 @@ void sam_print_seq_qual(
 	/* print unaligned region at the head */
 	if(aw->clip == 'S') {
 		for(int64_t i = 0; i < hlen; i++) {
-			zfputc(aw->fp, sam_seq_decode_base(seq[i]));
+			zfputc(aw->fp, aw_decode_4bit(seq[i]));
 		}
 	}
 
 	/* print body */
 	for(int64_t i = 0; i < curr->blen; i++) {
-		zfputc(aw->fp, sam_seq_decode_base(seq[hlen + i]));
+		zfputc(aw->fp, aw_decode_4bit(seq[hlen + i]));
 	}
 
 	/* print unaligned region at the tail */
 	if(aw->clip == 'S') {
 		for(int64_t i = 0; i < tlen; i++) {
-			zfputc(aw->fp, sam_seq_decode_base(seq[hlen + curr->blen + i]));
+			zfputc(aw->fp, aw_decode_4bit(seq[hlen + curr->blen + i]));
 		}
 	}
 
@@ -296,25 +304,25 @@ void sam_write_segment(
 	struct gaba_path_section_s const *next)
 {
 	/* query name */
-	sam_print_str(aw->fp,
+	aw_print_str(aw->fp,
 		gref_get_name(q, curr->bid).str,
 		gref_get_name(q, curr->bid).len);
 	zfputc(aw->fp, '\t');
 
 	/* flags (revcomp indicator) */
-	sam_print_num(aw->fp, sam_calc_flags(r, q, curr, next));
+	aw_print_num(aw->fp, sam_calc_flags(r, q, curr, next));
 	zfputc(aw->fp, '\t');
 
 	/* reference name and pos (name is skipped by default) */
-	sam_print_str(aw->fp, 
+	aw_print_str(aw->fp, 
 		gref_get_name(r, curr->aid).str,
 		gref_get_name(r, curr->aid).len);
 	zfputc(aw->fp, '\t');
-	sam_print_num(aw->fp, curr->apos);
+	aw_print_num(aw->fp, curr->apos);
 	zfputc(aw->fp, '\t');
 
 	/* mapping quality */
-	sam_print_num(aw->fp, 255);
+	aw_print_num(aw->fp, 255);
 	zfputc(aw->fp, '\t');
 
 	/* cigar */
@@ -322,11 +330,11 @@ void sam_write_segment(
 
 	/* ref name and pos of the next section */
 	if(next != NULL) {
-		sam_print_str(aw->fp,
+		aw_print_str(aw->fp,
 			gref_get_name(r, next->aid).str,
 			gref_get_name(r, next->aid).len);
 		zfputc(aw->fp, '\t');
-		sam_print_num(aw->fp, next->apos);
+		aw_print_num(aw->fp, next->apos);
 		zfputc(aw->fp, '\t');
 	} else {
 		/* tail */
@@ -367,6 +375,114 @@ void sam_write_alignment(
 	sam_write_segment(aw, r, q, aln->path, &aln->sec[aln->slen - 1], NULL);
 	return;
 }
+
+
+/* gpa format writers */
+
+/**
+ * @fn gpa_write_header
+ */
+static
+void gpa_write_header(
+	aw_t *aw,
+	gref_idx_t const *r,
+	gref_acv_t const *q)
+{
+	/**
+	 * GPA header should contain paths to input GFA files,
+	 * current signature can't take the path information
+	 * (since the gref objects are ignorant of the source
+	 * sequence files).
+	 */
+	zfprintf(aw->fp, "H\tVN:Z:%s\n", GPA_VERSION_STRING);
+	return;
+}
+
+/**
+ * @fn gpa_write_segment
+ */
+static _force_inline
+void gpa_write_segment(
+	aw_t *aw,
+	gref_idx_t const *r,
+	gref_acv_t const *q,
+	struct gaba_path_s const *path,
+	struct gaba_path_section_s const *sec)
+{
+	/* write tag ('A': alignment) */
+	zfprintf(aw->fp, "A\t");
+
+	/* ref name */
+	aw_print_str(aw->fp,
+		gref_get_name(r, sec->aid).str,
+		gref_get_name(r, sec->aid).len);
+	zfputc(aw->fp, '\t');
+
+	/* ref pos */
+	aw_print_num(aw->fp,
+		(gref_dir(sec->aid) == GREF_FW)
+			? sec->apos
+			: gref_get_section(r, sec->aid)->len - sec->apos);
+	zfputc(aw->fp, '\t');
+
+	/* ref direction */
+	zfputc(aw->fp, (gref_dir(sec->aid) == GREF_FW) ? '+' : '-');
+	zfputc(aw->fp, '\t');
+
+	/* query name */
+	aw_print_str(aw->fp,
+		gref_get_name(q, sec->bid).str,
+		gref_get_name(q, sec->bid).len);
+	zfputc(aw->fp, '\t');
+
+	/* query pos */
+	aw_print_num(aw->fp,
+		(gref_dir(sec->bid) == GREF_FW)
+			? sec->bpos
+			: gref_get_section(r, sec->bid)->len - sec->bpos);
+	zfputc(aw->fp, '\t');
+
+	/* query direction */
+	zfputc(aw->fp, (gref_dir(sec->bid) == GREF_FW) ? '+' : '-');
+	zfputc(aw->fp, '\t');
+
+	/* cigar string */
+	gaba_dp_print_cigar(
+		(gaba_dp_fprintf_t)zfprintf,
+		(void *)aw->fp,
+		path->array,
+		path->offset + sec->ppos,
+		sec->plen);
+	zfputc(aw->fp, '\t');
+
+	/* optional fields */
+	/* mapping quality */
+	zfprintf(aw->fp, "MQ:i:%d\t", 255);
+
+	/* alen and blen */
+	zfprintf(aw->fp, "RL:i:%u\tQL:i:%u", sec->alen, sec->blen);
+	zfputc(aw->fp, '\n');
+	return;
+}
+
+/**
+ * @fn gpa_write_alignment
+ */
+static
+void gpa_write_alignment(
+	aw_t *aw,
+	gref_idx_t const *r,
+	gref_acv_t const *q,
+	gaba_result_t const *aln)
+{
+	debug("slen(%u)", aln->slen);
+	for(int64_t i = 0; i < aln->slen; i++) {
+		debug("i(%lld), path(%p), &sec[i](%p)", i, aln->path, &aln->sec[i]);
+		gpa_write_segment(aw, r, q, aln->path, &aln->sec[i]);
+	}
+	return;
+}
+
 
 /**
  * @fn aw_append_alignment
@@ -428,6 +544,13 @@ aw_t *aw_init(
 			.header = sam_write_header,
 			.body = sam_write_alignment,
 			.footer = NULL
+		},
+		[AW_GPA] = {
+			.ext = ".gpa",
+			.mode = "w",
+			.header = gpa_write_header,
+			.body = gpa_write_alignment,
+			.footer = NULL
 		}
 	};
 
@@ -436,6 +559,8 @@ aw_t *aw_init(
 		aw->conf = conf[params->format];
 	} else {
 		for(int64_t i = 1; i < sizeof(conf) / sizeof(struct aw_conf_s); i++) {
+			if(conf[i].ext == NULL) { continue; }
+
 			if(strncmp(path + strlen(path) - strlen(conf[i].ext), conf[i].ext, strlen(conf[i].ext)) == 0) {
 				debug("format detected %s", conf[i].ext);
 
@@ -573,7 +698,7 @@ void *aw_unittest_init(
 		struct gaba_path_section_s *s = (struct gaba_path_section_s *)(res[1] + 1);
 		s[0] = (struct gaba_path_section_s){ 0, 5, 0, 4, 4, 4, 8, 0 };
 		s[1] = (struct gaba_path_section_s){ 2, 3, 0, 0, 4, 4, 8, 8 };
-		s[2] = (struct gaba_path_section_s){ 4, 1, 2, 0, 2, 2, 4, 16 };
+		s[2] = (struct gaba_path_section_s){ 4, 1, 0, 0, 2, 2, 4, 16 };
 
 		struct gaba_path_s *p = (struct gaba_path_s *)(s + 3);
 		p->len = 24;
@@ -646,6 +771,7 @@ unittest()
 	assert(SAM_DEFAULT_READGROUP == 1);
 }
 
+/* sam format writer */
 unittest()
 {
 	omajinai();
@@ -763,8 +889,8 @@ unittest()
 		"sec1\t0\tsec1\t0\t255\t4M\tsec2\t0\t0\tMGGG\t*\tRG:Z:1\n"
 		"sec2\t0\tsec2\t0\t255\t8M\t*\t0\t0\tACVVGTGT\t*\tRG:Z:1\n"
 		"sec2\t16\tsec0\t0\t255\t4M4S\tsec1\t0\t0\tACVVGTGT\t*\tRG:Z:1\n"
-		"sec1\t16\tsec1\t0\t255\t4M\tsec2\t2\t0\tMGGG\t*\tRG:Z:1\n"
-		"sec0\t16\tsec2\t2\t255\t2S2M\t*\t0\t0\tGGRA\t*\tRG:Z:1\n"
+		"sec1\t16\tsec1\t0\t255\t4M\tsec2\t0\t0\tMGGG\t*\tRG:Z:1\n"
+		"sec0\t16\tsec2\t0\t255\t2S2M\t*\t0\t0\tGGRA\t*\tRG:Z:1\n"
 		"sec0\t0\tsec0\t0\t255\t4M\tsec2\t0\t0\tGGRA\t*\tRG:Z:1\n"
 		"sec2\t0\tsec2\t0\t255\t8M\t*\t0\t0\tACVVGTGT\t*\tRG:Z:1\n";
 	char *rbuf = (char *)malloc(1024);
@@ -779,7 +905,6 @@ unittest()
 	free(rbuf);
 	remove(path);
 }
-
 
 /* append alignment (hard clip) */
 unittest()
@@ -801,8 +926,8 @@ unittest()
 		"sec1\t0\tsec1\t0\t255\t4M\tsec2\t0\t0\tMGGG\t*\tRG:Z:1\n"
 		"sec2\t0\tsec2\t0\t255\t8M\t*\t0\t0\tACVVGTGT\t*\tRG:Z:1\n"
 		"sec2\t16\tsec0\t0\t255\t4M4H\tsec1\t0\t0\tACVV\t*\tRG:Z:1\n"
-		"sec1\t16\tsec1\t0\t255\t4M\tsec2\t2\t0\tMGGG\t*\tRG:Z:1\n"
-		"sec0\t16\tsec2\t2\t255\t2H2M\t*\t0\t0\tRA\t*\tRG:Z:1\n"
+		"sec1\t16\tsec1\t0\t255\t4M\tsec2\t0\t0\tMGGG\t*\tRG:Z:1\n"
+		"sec0\t16\tsec2\t0\t255\t2H2M\t*\t0\t0\tRA\t*\tRG:Z:1\n"
 		"sec0\t0\tsec0\t0\t255\t4M\tsec2\t0\t0\tGGRA\t*\tRG:Z:1\n"
 		"sec2\t0\tsec2\t0\t255\t8M\t*\t0\t0\tACVVGTGT\t*\tRG:Z:1\n";
 	char *rbuf = (char *)malloc(1024);
@@ -816,6 +941,75 @@ unittest()
 	zfclose(fp);
 	free(rbuf);
 	remove(path);
+}
+
+
+/* gpa format writer */
+unittest()
+{
+	omajinai();
+
+	aw_t *aw = aw_init("./test.gpa", c->idx, NULL);
+
+	assert(aw != NULL, "%p", aw);
+
+	aw_clean(aw);
+	remove("./test.gpa");
+}
+
+/* check header */
+unittest()
+{
+	omajinai();
+
+	char const *path = "./test.gpa";
+	aw_t *aw = aw_init(path, c->idx, NULL);
+	aw_clean(aw);
+
+	char const *gpa = "H\tVN:Z:1.0\n";
+	char *rbuf = (char *)malloc(strlen(gpa) + 1);
+
+	zf_t *fp = zfopen(path, "r");
+	int64_t size = zfread(fp, rbuf, strlen(gpa) + 1);
+
+	assert(size == strlen(gpa), "size(%lld, %lld)", size, strlen(gpa));
+	assert(memcmp(rbuf, gpa, MIN2(size, strlen(gpa))) == 0, "%s%s", dump(rbuf, size), dump(gpa, strlen(gpa)));
+
+	zfclose(fp);
+	free(rbuf);
+	remove(path);
+}
+
+/* append alignment */
+unittest()
+{
+	omajinai();
+
+	char const *path = "./test.gpa";
+	aw_t *aw = aw_init(path, c->idx, NULL);
+	aw_append_alignment(aw, c->idx, c->idx, (gaba_result_t const *const *)c->res, c->cnt);
+	aw_clean(aw);
+
+	char const *gpa =
+		"H\tVN:Z:1.0\n"
+		"A\tsec0\t0\t+\tsec0\t0\t+\t4M\tMQ:i:255\tRL:i:4\tQL:i:4\n"
+		"A\tsec1\t0\t+\tsec1\t0\t+\t4M\tMQ:i:255\tRL:i:4\tQL:i:4\n"
+		"A\tsec2\t0\t+\tsec2\t0\t+\t8M\tMQ:i:255\tRL:i:8\tQL:i:8\n"
+		"A\tsec0\t0\t+\tsec2\t4\t-\t4M\tMQ:i:255\tRL:i:4\tQL:i:4\n"
+		"A\tsec1\t0\t+\tsec1\t4\t-\t4M\tMQ:i:255\tRL:i:4\tQL:i:4\n"
+		"A\tsec2\t0\t+\tsec0\t4\t-\t2M\tMQ:i:255\tRL:i:2\tQL:i:2\n"
+		"A\tsec0\t0\t+\tsec0\t0\t+\t4M\tMQ:i:255\tRL:i:4\tQL:i:4\n"
+		"A\tsec2\t0\t+\tsec2\t0\t+\t8M\tMQ:i:255\tRL:i:8\tQL:i:8\n";
+	char *rbuf = (char *)malloc(1024);
+
+	zf_t *fp = zfopen(path, "r");
+	int64_t size = zfread(fp, rbuf, 1024);
+
+	assert(size == strlen(gpa), "size(%lld, %lld)", size, strlen(gpa));
+	assert(memcmp(rbuf, gpa, MIN2(size, strlen(gpa))) == 0, "%s%s, %s, %s", dump(rbuf, size), dump(gpa, strlen(gpa)), rbuf, gpa);
+
+	zfclose(fp);
+	free(rbuf);
 }
 
 /**

@@ -16,7 +16,8 @@
 enum aw_file_format {
 	AW_SAM = 1,
 	AW_BAM = 2,
-	AW_MAF = 3
+	AW_MAF = 3,
+	AW_GPA = 4			/* graphical pairwise alignment format */
 };
 
 /**
