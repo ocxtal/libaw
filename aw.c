@@ -776,12 +776,13 @@ unittest()
 {
 	omajinai();
 
-	aw_t *aw = aw_init("./test.sam", c->idx, NULL);
+	char const *path = "./test.sam";
+	aw_t *aw = aw_init(path, c->idx, NULL);
 
 	assert(aw != NULL, "%p", aw);
 
 	aw_clean(aw);
-	remove("./test.sam");
+	remove(path);
 }
 
 unittest()
@@ -949,12 +950,13 @@ unittest()
 {
 	omajinai();
 
-	aw_t *aw = aw_init("./test.gpa", c->idx, NULL);
+	char const *path = "./test.gpa";
+	aw_t *aw = aw_init(path, c->idx, NULL);
 
 	assert(aw != NULL, "%p", aw);
 
 	aw_clean(aw);
-	remove("./test.gpa");
+	remove(path);
 }
 
 /* check header */
