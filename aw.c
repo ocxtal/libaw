@@ -28,7 +28,7 @@
 #define SAM_VERSION_STRING			"1.0"
 #define SAM_DEFAULT_READGROUP		( 1 )
 
-#define GPA_VERSION_STRING			"1.0"
+#define GPA_VERSION_STRING			"0.1"
 
 /**
  * @struct aw_conf_s
@@ -968,7 +968,7 @@ unittest()
 	aw_t *aw = aw_init(path, c->idx, NULL);
 	aw_clean(aw);
 
-	char const *gpa = "H\tVN:Z:1.0\n";
+	char const *gpa = "H\tVN:Z:0.1\n";
 	char *rbuf = (char *)malloc(strlen(gpa) + 1);
 
 	zf_t *fp = zfopen(path, "r");
@@ -993,7 +993,7 @@ unittest()
 	aw_clean(aw);
 
 	char const *gpa =
-		"H\tVN:Z:1.0\n"
+		"H\tVN:Z:0.1\n"
 		"A\tsec0\t0\t+\tsec0\t0\t+\t4M\tMQ:i:255\tRL:i:4\tQL:i:4\n"
 		"A\tsec1\t0\t+\tsec1\t0\t+\t4M\tMQ:i:255\tRL:i:4\tQL:i:4\n"
 		"A\tsec2\t0\t+\tsec2\t0\t+\t8M\tMQ:i:255\tRL:i:8\tQL:i:8\n"
