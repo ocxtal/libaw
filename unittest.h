@@ -1376,6 +1376,10 @@ int ut_main_impl(int argc, char *argv[])
 	/* dump symbol table */
 	struct ut_nm_result_s *nm = ut_nm(argv[0]);
 
+	if(nm == NULL) {
+		return(1);
+	}
+
 	/* dump tests and configs */
 	struct ut_s *test = ut_get_unittest(nm);
 	struct ut_group_config_s *config = ut_get_ut_config(nm);
