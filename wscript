@@ -2,6 +2,8 @@
 # encoding: utf-8
 
 def options(opt):
+	opt.recurse('gaba')
+	opt.recurse('gref')
 	opt.recurse('zf')
 	opt.load('compiler_c')
 
