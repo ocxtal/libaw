@@ -1,0 +1,9 @@
+[submodule "gaba"]
+	path = gaba
+	url = https://github.com/ocxtal/libgaba.git
+[submodule "zf"]
+	path = zf
+	url = https://github.com/ocxtal/libzf.git
+[submodule "gref"]
+	path = gref
+	url = https://github.com/ocxtal/libgref.git
