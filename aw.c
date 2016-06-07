@@ -1012,6 +1012,7 @@ unittest()
 
 	zfclose(fp);
 	free(rbuf);
+	remove(path);
 }
 
 /**
