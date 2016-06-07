@@ -538,6 +538,13 @@ aw_t *aw_init(
 	}
 
 	struct aw_conf_s conf[] = {
+		[0] = {
+			.ext = "-",
+			.mode = "w",
+			.header = gpa_write_header,
+			.body = gpa_write_alignment,
+			.footer = NULL
+		},
 		[AW_SAM] = {
 			.ext = ".sam",
 			.mode = "w",
@@ -558,7 +565,7 @@ aw_t *aw_init(
 	if(params->format != 0) {
 		aw->conf = conf[params->format];
 	} else {
-		for(int64_t i = 1; i < sizeof(conf) / sizeof(struct aw_conf_s); i++) {
+		for(int64_t i = 0; i < sizeof(conf) / sizeof(struct aw_conf_s); i++) {
 			if(conf[i].ext == NULL) { continue; }
 
 			if(strncmp(path + strlen(path) - strlen(conf[i].ext), conf[i].ext, strlen(conf[i].ext)) == 0) {
@@ -629,6 +636,8 @@ void aw_clean(
 
 
 /* unittest */
+#include <unistd.h>
+#include <fcntl.h>
 
 #define _str(x)		x, strlen(x)
 #define _seq(x)		(uint8_t const *)(x), strlen(x)
@@ -769,6 +778,25 @@ unittest_config(
 unittest()
 {
 	assert(SAM_DEFAULT_READGROUP == 1);
+}
+
+/* redirect to stdout */
+unittest()
+{
+	omajinai();
+
+	/* redirect stdout to /dev/null */
+	fflush(stdout);
+	int b = dup(1), n = open("/dev/null", O_WRONLY);
+	dup2(n, 1); close(n);
+
+	aw_t *aw = aw_init("-", c->idx, NULL);
+	assert(aw != NULL, "%p", aw);
+	aw_clean(aw);
+
+	/* cleanup */
+	fflush(stdout);
+	dup2(b, 1); close(b);
 }
 
 /* sam format writer */
