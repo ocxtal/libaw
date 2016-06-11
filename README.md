@@ -1,6 +1,6 @@
 # libaw
 
-Libaw is a alignment writer library, mainly targeting internal use in nucleotide sequence local alignment programs. The library can handle the SAM format and the Graphical Pairwise Alignment (GPA) format.
+Libaw is a alignment writer library, mainly targeting internal use in nucleotide sequence local alignment programs. The library can handle the SAM format and the [Graphical Pairwise Alignment (GPA)](https://github.com/ocxtal/gpa) format.
 
 ## Functions
 
