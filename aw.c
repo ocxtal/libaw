@@ -413,15 +413,17 @@ void gpa_write_segment(
 	gref_idx_t const *r,
 	gref_acv_t const *q,
 	struct gaba_path_s const *path,
-	struct gaba_path_section_s const *sec)
+	struct gaba_path_section_s const *sec,
+	int head,
+	int tail)
 {
 	/* write tag ('A': alignment) */
 	zfprintf(aw->fp, "A\t");
 
 	/* alignment name */
 	aw_print_str(aw->fp, aw->aln_name_prefix, aw->aln_name_len);
-	zfprintf(aw->fp, "%lld\t", aw->aln_cnt);
-	aw->aln_cnt++;
+	aw_print_num(aw->fp, aw->aln_cnt);
+	zfputc(aw->fp, '\t');
 
 	/* ref name */
 	aw_print_str(aw->fp,
@@ -474,13 +476,27 @@ void gpa_write_segment(
 		sec->plen);
 	zfputc(aw->fp, '\t');
 
+	/* prev */
+	if(head == 0){
+		aw_print_str(aw->fp, aw->aln_name_prefix, aw->aln_name_len);
+		aw_print_num(aw->fp, aw->aln_cnt - 1);
+	} else {
+		zfputc(aw->fp, '*');
+	}
+	zfputc(aw->fp, '\t');
+
+	/* next */
+	if(tail == 0){
+		aw_print_str(aw->fp, aw->aln_name_prefix, aw->aln_name_len);
+		aw_print_num(aw->fp, aw->aln_cnt + 1);
+	} else {
+		zfputc(aw->fp, '*');
+	}
+	zfputc(aw->fp, '\t');
+
 	/* optional fields */
 	/* mapping quality */
 	zfprintf(aw->fp, "MQ:i:%d\n", 255);
-
-	/* alen and blen */
-	// zfprintf(aw->fp, "RL:i:%u\tQL:i:%u", sec->alen, sec->blen);
-	// zfputc(aw->fp, '\n');
 	return;
 }
 
@@ -495,9 +511,11 @@ void gpa_write_alignment(
 	gaba_result_t const *aln)
 {
 	debug("slen(%u)", aln->slen);
+
 	for(int64_t i = 0; i < aln->slen; i++) {
 		debug("i(%lld), path(%p), &sec[i](%p)", i, aln->path, &aln->sec[i]);
-		gpa_write_segment(aw, r, q, aln->path, &aln->sec[i]);
+		gpa_write_segment(aw, r, q, aln->path, &aln->sec[i], i == 0, i == (aln->slen - 1));
+		aw->aln_cnt++;
 	}
 	return;
 }
@@ -683,7 +701,7 @@ void *aw_unittest_init(
 		sizeof(struct aw_unittest_ctx_s));
 
 	gref_pool_t *pool = gref_init_pool(GREF_PARAMS(
-		.k = 3,
+		.k = 4,
 		.seq_head_margin = 32,
 		.seq_tail_margin = 32));
 	gref_append_segment(pool, _str("sec0"), _seq("GGRA"));
@@ -1050,14 +1068,14 @@ unittest()
 
 	char const *gpa =
 		"H\tVN:Z:0.1\n"
-		"A\t0\tsec0\t0\t4\t+\tsec0\t0\t4\t+\t4M\tMQ:i:255\n"
-		"A\t1\tsec1\t0\t4\t+\tsec1\t0\t4\t+\t4M\tMQ:i:255\n"
-		"A\t2\tsec2\t0\t8\t+\tsec2\t0\t8\t+\t8M\tMQ:i:255\n"
-		"A\t3\tsec0\t0\t4\t+\tsec2\t4\t4\t-\t4M\tMQ:i:255\n"
-		"A\t4\tsec1\t0\t4\t+\tsec1\t4\t4\t-\t4M\tMQ:i:255\n"
-		"A\t5\tsec2\t0\t2\t+\tsec0\t4\t2\t-\t2M\tMQ:i:255\n"
-		"A\t6\tsec0\t0\t4\t+\tsec0\t0\t4\t+\t4M\tMQ:i:255\n"
-		"A\t7\tsec2\t0\t8\t+\tsec2\t0\t8\t+\t8M\tMQ:i:255\n";
+		"A\t0\tsec0\t0\t4\t+\tsec0\t0\t4\t+\t4M\t*\t1\tMQ:i:255\n"
+		"A\t1\tsec1\t0\t4\t+\tsec1\t0\t4\t+\t4M\t0\t2\tMQ:i:255\n"
+		"A\t2\tsec2\t0\t8\t+\tsec2\t0\t8\t+\t8M\t1\t*\tMQ:i:255\n"
+		"A\t3\tsec0\t0\t4\t+\tsec2\t4\t4\t-\t4M\t*\t4\tMQ:i:255\n"
+		"A\t4\tsec1\t0\t4\t+\tsec1\t4\t4\t-\t4M\t3\t5\tMQ:i:255\n"
+		"A\t5\tsec2\t0\t2\t+\tsec0\t4\t2\t-\t2M\t4\t*\tMQ:i:255\n"
+		"A\t6\tsec0\t0\t4\t+\tsec0\t0\t4\t+\t4M\t*\t7\tMQ:i:255\n"
+		"A\t7\tsec2\t0\t8\t+\tsec2\t0\t8\t+\t8M\t6\t*\tMQ:i:255\n";
 	char *rbuf = (char *)malloc(1024);
 
 	zf_t *fp = zfopen(path, "r");
@@ -1083,14 +1101,14 @@ unittest()
 
 	char const *gpa =
 		"H\tVN:Z:0.1\n"
-		"A\taln0\tsec0\t0\t4\t+\tsec0\t0\t4\t+\t4M\tMQ:i:255\n"
-		"A\taln1\tsec1\t0\t4\t+\tsec1\t0\t4\t+\t4M\tMQ:i:255\n"
-		"A\taln2\tsec2\t0\t8\t+\tsec2\t0\t8\t+\t8M\tMQ:i:255\n"
-		"A\taln3\tsec0\t0\t4\t+\tsec2\t4\t4\t-\t4M\tMQ:i:255\n"
-		"A\taln4\tsec1\t0\t4\t+\tsec1\t4\t4\t-\t4M\tMQ:i:255\n"
-		"A\taln5\tsec2\t0\t2\t+\tsec0\t4\t2\t-\t2M\tMQ:i:255\n"
-		"A\taln6\tsec0\t0\t4\t+\tsec0\t0\t4\t+\t4M\tMQ:i:255\n"
-		"A\taln7\tsec2\t0\t8\t+\tsec2\t0\t8\t+\t8M\tMQ:i:255\n";
+		"A\taln0\tsec0\t0\t4\t+\tsec0\t0\t4\t+\t4M\t*\taln1\tMQ:i:255\n"
+		"A\taln1\tsec1\t0\t4\t+\tsec1\t0\t4\t+\t4M\taln0\taln2\tMQ:i:255\n"
+		"A\taln2\tsec2\t0\t8\t+\tsec2\t0\t8\t+\t8M\taln1\t*\tMQ:i:255\n"
+		"A\taln3\tsec0\t0\t4\t+\tsec2\t4\t4\t-\t4M\t*\taln4\tMQ:i:255\n"
+		"A\taln4\tsec1\t0\t4\t+\tsec1\t4\t4\t-\t4M\taln3\taln5\tMQ:i:255\n"
+		"A\taln5\tsec2\t0\t2\t+\tsec0\t4\t2\t-\t2M\taln4\t*\tMQ:i:255\n"
+		"A\taln6\tsec0\t0\t4\t+\tsec0\t0\t4\t+\t4M\t*\taln7\tMQ:i:255\n"
+		"A\taln7\tsec2\t0\t8\t+\tsec2\t0\t8\t+\t8M\taln6\t*\tMQ:i:255\n";
 	char *rbuf = (char *)malloc(1024);
 
 	zf_t *fp = zfopen(path, "r");
